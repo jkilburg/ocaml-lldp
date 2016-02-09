@@ -247,12 +247,12 @@ module Tlv = struct
         | _ -> Reserved (subtype,C.string ~len:(tlv_len - 4) buf)          
       ;;
     end
-    
+
     type t = Unknown of int * int * int * int * string
            | Ieee_802_1 of Ieee_802_1.t
            | Ieee_802_3 of Ieee_802_3.t
     with sexp
-      
+
     let of_iobuf buf tlv_len =
       let b1 = C.uint8 buf in
       let b2 = C.uint8 buf in
