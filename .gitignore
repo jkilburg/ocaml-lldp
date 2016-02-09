@@ -1,0 +1,12 @@
+*.cmo
+*.cmi
+*.cma
+*.cmx
+*.cmxa
+*.a
+*.so
+*.o
+a.out
+*~
+lldptool
+lldpd
