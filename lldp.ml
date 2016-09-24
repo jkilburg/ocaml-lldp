@@ -5,12 +5,12 @@ module Inet_addr = Unix.Inet_addr
 module C = Iobuf.Consume
 
 module Mac_address : sig
-  type t with sexp
+  type t [@@deriving sexp]
 
   val of_string : string -> t
   val to_string : t -> string
 end = struct
-  type t = string with sexp
+  type t = string [@@deriving sexp]
 
   let of_string = Fn.id
   let to_string = Fn.id
@@ -35,7 +35,7 @@ module Tlv = struct
              | Reserved_13
              | Reserved_14
              | Reserved_15
-      with sexp
+      [@@deriving sexp]
 
       let of_int = function
         | 0  -> Other
@@ -77,7 +77,7 @@ module Tlv = struct
       ;;
     end
     
-    type t = System_capability_bit.t list with sexp
+    type t = System_capability_bit.t list [@@deriving sexp]
 
     let of_iobuf buf =
       let mask = C.uint16_be buf in
@@ -102,10 +102,10 @@ module Tlv = struct
            | Interface_alias   of string
            | Port_component    of string
            | Mac_address       of Mac_address.t
-           | Network_address   of Inet_addr.t
+           | Network_address   of Inet_addr.Blocking_sexp.t
            | Interface_name    of string
            | Local             of string
-    with sexp
+    [@@deriving sexp]
 
     let of_iobuf buf tlv_len  =
       let subtype = C.uint8 buf in
@@ -127,11 +127,11 @@ module Tlv = struct
            | Interface_alias  of string
            | Port_component   of string
            | Mac_address      of Mac_address.t
-           | Network_address  of Inet_addr.t
+           | Network_address  of Inet_addr.Blocking_sexp.t
            | Interface_name   of string
            | Agent_circuit_id of string
            | Local            of string
-    with sexp
+    [@@deriving sexp]
 
     let of_iobuf buf tlv_len =
       let subtype = C.uint8 buf in
@@ -155,7 +155,7 @@ module Tlv = struct
              | Port_and_protocol_vlan_id of int * int
              | Vlan_name of int * string
              | Protocol_identity of string
-      with sexp
+      [@@deriving sexp]
 
       let of_iobuf buf tlv_len =
         let subtype = C.uint8 buf in
@@ -182,14 +182,14 @@ module Tlv = struct
         ; autoneg_capability : int
         ; mau_type           : int
         }
-      with sexp
+      [@@deriving sexp]
 
       type link_aggregation_status =
         { supported : bool
         ; enabled   : bool
         ; port_id   : int
         }
-      with sexp
+      [@@deriving sexp]
 
       type power_status =
         { port_class         : int
@@ -199,14 +199,14 @@ module Tlv = struct
         ; power_pair         : int
         ; power_class        : int
         }
-      with sexp
+      [@@deriving sexp]
         
       type t = Reserved of int * string
              | Phy_configuration_status of phy_configuration_status
              | Power_via_mdi of power_status
              | Link_aggregation of link_aggregation_status
              | Maximum_frame_size of int
-      with sexp
+      [@@deriving sexp]
 
       let of_iobuf buf tlv_len =
         let subtype = C.uint8 buf in
@@ -251,7 +251,7 @@ module Tlv = struct
     type t = Unknown of int * int * int * int * string
            | Ieee_802_1 of Ieee_802_1.t
            | Ieee_802_3 of Ieee_802_3.t
-    with sexp
+    [@@deriving sexp]
 
     let of_iobuf buf tlv_len =
       let b1 = C.uint8 buf in
@@ -275,7 +275,7 @@ module Tlv = struct
       ; interface_number            : int
       ; oid                         : string
       }
-    with sexp
+    [@@deriving sexp]
 
     let of_iobuf buf =
       let slen                        = C.uint8 buf in
@@ -305,7 +305,7 @@ module Tlv = struct
          | Management_address  of Management_address_data.t
          | Reserved            of int * string
          | Organizational      of Organizational_data.t
-  with sexp
+  [@@deriving sexp]
     
   let of_iobuf buf =
     let b1 = C.uint8 buf in
@@ -334,7 +334,7 @@ type t =
   { destination_mac : Mac_address.t
   ; source_mac      : Mac_address.t
   ; tlvs            : Tlv.t list
-  } with sexp
+  } [@@deriving sexp]
 
 let of_iobuf buf =
   let destination_mac = Mac_address.of_string (C.string ~len:6 buf) in

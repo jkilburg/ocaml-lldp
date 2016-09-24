@@ -13,16 +13,19 @@ lldptool: lldp.ml lldptool.ml Makefile
 	ocamlfind ocamlopt -thread -g -o $@ -linkpkg -package core -package async_kernel -package async lldptool.ml lldp.ml
 
 packet.cmx: packet.ml Makefile
-	ocamlfind ocamlopt -thread -g -c -package core $<
+	ocamlfind ocamlopt -thread -g -c -package core $(<)i $<
 
 netdevice.cmx: netdevice.ml Makefile
-	ocamlfind ocamlopt -thread -g -c -package core $<
+	ocamlfind ocamlopt -thread -g -c -package core $(<)i $<
 
 socket.cmx: socket.ml Makefile
-	ocamlfind ocamlopt -thread -g -c -package core $<
+	ocamlfind ocamlopt -thread -g -c -package core $(<)i $<
 
-liblldp.a: packet_intf.o netdevice_intf.o socket_intf.o netdevice.cmx packet.cmx socket.cmx Makefile
-	$(OCAMLMKLIB) -custom -oc lldp packet_intf.o netdevice_intf.o netdevice.cmx packet.cmx socket.cmx
+lldp.cmx: lldp.ml Makefile
+	ocamlfind ocamlopt -thread -g -c -package ppx_jane -package core $<
 
-lldpd: lldp.ml lldpd.ml liblldp.a Makefile
-	ocamlfind ocamlopt -thread -g -o $@ -linkpkg -syntax camlp4o -package sexplib.syntax -package comparelib.syntax -package core -package async_kernel -package async lldp.ml lldpd.ml liblldp.a
+liblldp.a: packet_stub.o netdevice_stub.o socket_stub.o netdevice.cmx packet.cmx socket.cmx lldp.cmx Makefile
+	$(OCAMLMKLIB) -custom -oc lldp packet_stub.o netdevice_stub.o netdevice.cmx packet.cmx socket.cmx lldp.cmx
+
+lldpd: lldpd.ml lldpd.mli liblldp.a Makefile
+	ocamlfind ocamlopt -thread -g -o $@ -linkpkg -package core -package async_kernel -package async lldpd.mli lldpd.ml liblldp.a
