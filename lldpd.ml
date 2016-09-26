@@ -24,14 +24,12 @@ let nearest_bridge = [ 0x01; 0x80; 0xc2; 0x00; 0x00; 0x0e ]
 let nearest_nontpmr_bridge = [ 0x01; 0x80; 0xc2; 0x00; 0x00; 0x03 ]
 let nearest_customer_bridge = [ 0x01; 0x80; 0xc2; 0x00; 0x00; 0x00 ]
     
-let lldp_protocol_number = 0x88cc
-
 let make_mac l =
   String.of_char_list (List.map l ~f:Char.of_int_exn)
 ;;
 
 let setup_socket interface =
-  let protocol_number = lldp_protocol_number in
+  let protocol_number = Lldp.lldp_protocol_number in
   let open Core.Std.Or_error in
   let error msg = function
     | Error ec  -> Or_error.errorf "%s Errno = %d" msg ec
