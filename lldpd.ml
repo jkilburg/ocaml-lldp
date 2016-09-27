@@ -20,14 +20,6 @@ let rec read_all_lldp fd buf =
     Deferred.Or_error.ok_unit
 ;;
 
-let nearest_bridge = [ 0x01; 0x80; 0xc2; 0x00; 0x00; 0x0e ]
-let nearest_nontpmr_bridge = [ 0x01; 0x80; 0xc2; 0x00; 0x00; 0x03 ]
-let nearest_customer_bridge = [ 0x01; 0x80; 0xc2; 0x00; 0x00; 0x00 ]
-    
-let make_mac l =
-  String.of_char_list (List.map l ~f:Char.of_int_exn)
-;;
-
 let setup_socket interface =
   let protocol_number = Lldp.lldp_protocol_number in
   let open Core.Std.Or_error in
@@ -43,11 +35,14 @@ let setup_socket interface =
   >>= fun () ->
   error "Netdevice.siocgifhwaddr" (Netdevice.siocgifhwaddr fd interface)
   >>= fun hw ->
-  error "Packet.add_membership" (Packet.add_membership fd ifindex (make_mac nearest_bridge))
+  let mac = Lldp.Mac_address.(nearest_bridge () |> to_string) in
+  error "Packet.add_membership" (Packet.add_membership fd ifindex mac)
   >>= fun () ->
-  error "Packet.add_membership" (Packet.add_membership fd ifindex (make_mac nearest_nontpmr_bridge))
+  let mac = Lldp.Mac_address.(nearest_nontpmr_bridge () |> to_string) in
+  error "Packet.add_membership" (Packet.add_membership fd ifindex mac)
   >>= fun () ->
-  error "Packet.add_membership" (Packet.add_membership fd ifindex (make_mac nearest_customer_bridge))
+  let mac = Lldp.Mac_address.(nearest_customer_bridge () |> to_string) in
+  error "Packet.add_membership" (Packet.add_membership fd ifindex mac)
   >>= fun () ->
   printf "Interface MAC: ";
   String.iter hw ~f:(fun c -> printf "%02x" (Char.to_int c));

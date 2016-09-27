@@ -4,7 +4,7 @@ OCAMLMKLIB = ocamlmklib
 GCC = gcc
 OCAML = ocaml
 
-all: lldpd
+all: lldpd lldp_test
 
 clean:
 	rm -f *.o *.cmo *.cma *.a *.so a.out *.cmx *.cmi *.cmxa lldptool lldpd *~
@@ -31,3 +31,6 @@ CMX_FILES=packet.cmx netdevice.cmx socket.cmx lldp.cmx
 
 lldpd: $(CMX_FILES) lldpd.ml lldpd.mli liblldp.a Makefile
 	ocamlfind ocamlopt -thread -g -o $@ -linkpkg -package core -package async_kernel -package async liblldp.a $(CMX_FILES) lldpd.mli lldpd.ml
+
+lldp_test: $(CMX_FILES) lldp_test.ml lldp_test.mli liblldp.a Makefile
+	ocamlfind ocamlopt -thread -g -o $@ -linkpkg -package core -package async_kernel -package async liblldp.a $(CMX_FILES) lldp_test.mli lldp_test.ml

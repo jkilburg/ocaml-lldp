@@ -5,19 +5,41 @@ module Inet_addr = Unix.Inet_addr
 module C = Iobuf.Consume
 module F = Iobuf.Fill
 
+let lldp_protocol_number = 0x88cc
+
 module Mac_address : sig
   type t [@@deriving sexp]
 
   val of_string : string -> t
   val to_string : t -> string
+
+  val of_byte_list : int list -> t
+
+  val nearest_bridge          : unit -> t
+  val nearest_nontpmr_bridge  : unit -> t
+  val nearest_customer_bridge : unit -> t
 end = struct
   type t = string [@@deriving sexp]
 
   let of_string = Fn.id
   let to_string = Fn.id
-end
+                                
+  let of_byte_list l =
+    String.of_char_list (List.map l ~f:Char.of_int_exn)
+  ;;
 
-let lldp_protocol_number = 0x88cc
+  let nearest_bridge () =
+    of_byte_list [ 0x01; 0x80; 0xc2; 0x00; 0x00; 0x0e ]
+  ;;
+
+  let nearest_nontpmr_bridge () =
+    of_byte_list [ 0x01; 0x80; 0xc2; 0x00; 0x00; 0x03 ]
+  ;;
+
+  let nearest_customer_bridge () =
+    of_byte_list [ 0x01; 0x80; 0xc2; 0x00; 0x00; 0x00 ]
+  ;;
+end
 
 module Tlv = struct
   let type_and_len ~tlv_type ~tlv_len =
@@ -74,7 +96,7 @@ module Tlv = struct
         | x  -> failwithf "Undefined system capabiliy bit: %d" x ()
       ;;
 
-      let to_int t = function
+      let to_int = function
         | Other               -> 0
         | Repeater            -> 1
         | Bridge              -> 2
@@ -98,22 +120,33 @@ module Tlv = struct
 
     let of_iobuf buf =
       let mask = C.uint16_be buf in
-      let rec check_bit ~t ~mask bit =
-        if bit = 16
-        then List.rev t
-        else
+      let rec check_bit ~t = function
+        | 16  -> List.rev t
+        | bit ->
           let t =
-            if mask land 0x0001 = 1
+            if Int.shift_right mask bit land 0x0001 = 1
             then (System_capability_bit.of_int bit)::t
             else t
           in
-          check_bit ~t ~mask:(Int.shift_right mask 1) (bit + 1)
+          check_bit ~t (bit + 1)
       in
-      check_bit ~t:[] ~mask 0
+      check_bit ~t:[] 0
     ;;
 
     let to_iobuf ~caps ~enabled =
-      Iobuf.create ~len:2
+      let rec set_bit ~mask = function
+        | []     -> mask
+        | hd::tl ->
+          let mask =
+            mask lor Int.shift_left 1 (System_capability_bit.to_int hd)
+          in
+          set_bit ~mask tl
+      in
+      let buf = Iobuf.create ~len:6 in
+      F.uint16_be buf (type_and_len ~tlv_type ~tlv_len:4);
+      F.uint16_be buf (set_bit ~mask:0 caps);
+      F.uint16_be buf (set_bit ~mask:0 enabled);
+      buf
     ;;
   end
 
@@ -144,8 +177,24 @@ module Tlv = struct
       | x -> Reserved (x,s)
     ;;
 
-    let to_iobuf _t =
-      Iobuf.create ~len:2
+    let to_iobuf t =
+      let (subtype,data) =
+        match t with
+        | Chassis_component s  -> (1,s)
+        | Interface_alias s    -> (2,s)
+        | Port_component s     -> (3,s)
+        | Mac_address mac      -> (4,Mac_address.to_string mac)
+        | Network_address ip   -> (5,Inet_addr.to_string ip)
+        | Interface_name s     -> (6,s)
+        | Local s              -> (7,s) 
+        | Reserved (subtype,s) -> (subtype,s)
+      in
+      let tlv_len = String.length data + 1 in
+      let buf = Iobuf.create ~len:(tlv_len + 2) in
+      F.uint16_be buf (type_and_len ~tlv_type ~tlv_len);
+      F.uint8 buf subtype;
+      F.string buf data;
+      buf
     ;;
   end
 
@@ -176,8 +225,24 @@ module Tlv = struct
       | x -> Reserved (x,s)
     ;;
 
-    let to_iobuf _t =
-      Iobuf.create ~len:2
+    let to_iobuf t =
+      let (subtype,data) =
+        match t with
+        | Interface_alias s    -> (1,s)
+        | Port_component s     -> (2,s)
+        | Mac_address mac      -> (3,Mac_address.to_string mac)
+        | Network_address ip   -> (4,Inet_addr.to_string ip)
+        | Interface_name s     -> (5,s)
+        | Agent_circuit_id s   -> (6,s)
+        | Local s              -> (7,s)
+        | Reserved (subtype,s) -> (subtype,s)
+      in
+      let tlv_len = String.length data + 1 in
+      let buf = Iobuf.create ~len:(tlv_len + 2) in
+      F.uint16_be buf (type_and_len ~tlv_type ~tlv_len);
+      F.uint8 buf subtype;
+      F.string buf data;
+      buf
     ;;
   end
 
@@ -209,9 +274,7 @@ module Tlv = struct
         | _ -> Reserved (subtype,C.string ~len:(tlv_len - 4) buf)          
       ;;
 
-      let to_iobuf _t =
-        Iobuf.create ~len:2
-      ;;
+      let to_iobuf _t _buf = ()
     end
 
     module Ieee_802_3 = struct
@@ -266,7 +329,7 @@ module Tlv = struct
           let power_class    = C.uint8 buf in
           Power_via_mdi
             { port_class         = power_support land 0x01
-            ; pse_supported      = power_support land 0x02 = 0x04
+            ; pse_supported      = power_support land 0x02 = 0x02
             ; pse_enabled        = power_support land 0x04 = 0x04
             ; pairs_controllable = power_support land 0x08 = 0x08
             ; power_pair
@@ -286,9 +349,7 @@ module Tlv = struct
         | _ -> Reserved (subtype,C.string ~len:(tlv_len - 4) buf)          
       ;;
 
-      let to_iobuf _t =
-        Iobuf.create ~len:2
-      ;;
+      let to_iobuf _t _buf = ()
     end
 
     type t = Unknown of int * int * int * int * string
@@ -310,7 +371,7 @@ module Tlv = struct
     ;;
 
     let to_iobuf _t =
-      Iobuf.create ~len:2
+      failwith "Not implemented"
     ;;
   end
 
@@ -327,13 +388,13 @@ module Tlv = struct
     [@@deriving sexp]
 
     let of_iobuf buf =
-      let slen                        = C.uint8 buf in
+      let mlen                        = C.uint8 buf in
       let management_address_subtype  = C.uint8 buf in
-      let management_address          = C.string ~len:slen buf in
+      let management_address          = C.string ~len:mlen buf in
       let interface_numbering_subtype = C.uint8 buf in
       let interface_number            = C.uint32_be buf in
-      let oid_slen                    = C.uint8 buf in
-      let oid                         = C.string ~len:oid_slen buf in
+      let olen                        = C.uint8 buf in
+      let oid                         = C.string ~len:olen buf in
       { management_address_subtype
       ; management_address
       ; interface_numbering_subtype
@@ -342,8 +403,26 @@ module Tlv = struct
       }
     ;;
 
-    let to_iobuf _t =
-      Iobuf.create ~len:2
+    let to_iobuf t =
+      let mlen = String.length t.management_address in
+      let olen = String.length t.oid in
+      let tlv_len =
+        (* management_address_length + subtype + address *)
+        1 + 1 + mlen
+        (* interface_numbering_subtype + interface_number (4 bytes) *)
+        + 1 + 4
+        (* oid length + oid *)
+        + 1 + olen
+      in
+      let buf = Iobuf.create ~len:(2 + tlv_len) in
+      F.uint16_be buf (type_and_len ~tlv_type ~tlv_len);
+      F.uint8 buf mlen;
+      F.string buf t.management_address;
+      F.uint8 buf t.interface_numbering_subtype;
+      F.uint32_be buf t.interface_number;
+      F.uint8 buf olen;
+      F.string buf t.oid;
+      buf
     ;;
   end
 
@@ -353,13 +432,14 @@ module Tlv = struct
          | Ttl                 of int
          | Port_description    of string
          | System_name         of string
-         | System_capabilities of System_capabilities_data.t * System_capabilities_data.t
+         | System_capabilities of
+             System_capabilities_data.t * System_capabilities_data.t
          | System_description  of string
          | Management_address  of Management_address_data.t
          | Reserved            of int * string
          | Organizational      of Organizational_data.t
   [@@deriving sexp]
-    
+
   let of_iobuf buf =
     let b1 = C.uint8 buf in
     let b2 = C.uint8 buf in
@@ -385,7 +465,8 @@ module Tlv = struct
   let ttl_iobuf x =
     let buf = Iobuf.create ~len:4 in
     F.uint16_be buf (type_and_len ~tlv_type:3 ~tlv_len:2);
-    F.uint16_be buf x; buf
+    F.uint16_be buf x;
+    buf
   ;;
 
   let last_tlv_iobuf () =
@@ -396,15 +477,15 @@ module Tlv = struct
   ;;
 
   let to_iobuf = function
-    | Last_tlv              -> last_tlv_iobuf () (* tlv_type = 0 *)
-    | Chassis_id x          -> Chassis_id_data.to_iobuf x (* 1 *)
-    | Port_id x             -> Port_id_data.to_iobuf x (* 2 *)
-    | Ttl x                 -> ttl_iobuf x (* 3 *)
+    | Last_tlv              -> last_tlv_iobuf ()           (* tlv_type = 0 *)
+    | Chassis_id x          -> Chassis_id_data.to_iobuf x  (* 1 *)
+    | Port_id x             -> Port_id_data.to_iobuf x     (* 2 *)
+    | Ttl x                 -> ttl_iobuf x                 (* 3 *)
     | Port_description x    -> string_iobuf ~tlv_type:4 x
     | System_name x         -> string_iobuf ~tlv_type:5 x
     | System_description x  -> string_iobuf ~tlv_type:6 x
     | System_capabilities (caps,enabled) ->
-      System_capabilities_data.to_iobuf ~caps ~enabled (* 7 *)
+      System_capabilities_data.to_iobuf ~caps ~enabled     (* 7 *)
     | Management_address x  -> Management_address_data.to_iobuf x (* 8 *)
     | Organizational x      -> Organizational_data.to_iobuf x (* 127 *)
     | Reserved (tlv_type,x) -> string_iobuf ~tlv_type x
@@ -431,12 +512,41 @@ let of_iobuf buf =
   | x      -> failwithf "Unknown ether_type: %x" x ()
 ;;
 
-let to_iobufs t =
-  let buf = Iobuf.create ~len:28 in
-  F.string buf ~len:6 (Mac_address.to_string t.destination_mac);
-  F.string buf ~len:6 (Mac_address.to_string t.source_mac);
+let to_iobuf_list t =
+  let buf = Iobuf.create ~len:14 in
+  F.string buf (Mac_address.to_string t.destination_mac);
+  F.string buf (Mac_address.to_string t.source_mac);
   F.uint16_be buf lldp_protocol_number;
   let tlv_bufs = List.map t.tlvs ~f:Tlv.to_iobuf in
   let last_buf = Tlv.to_iobuf Tlv.Last_tlv in
   buf :: ( tlv_bufs @ [ last_buf ] )
+;;
+
+let to_iobuf t =
+  let iobufs = to_iobuf_list t in
+  let len =
+    List.fold iobufs ~init:0
+      ~f:(fun acc iobuf ->
+          Iobuf.rewind iobuf;
+          printf "%s\n" (Iobuf.to_string_hum ~bounds:`Whole iobuf);
+          acc + Iobuf.length iobuf)
+  in
+  let buf = Iobuf.create ~len in
+  List.iter iobufs
+    ~f:(fun iobuf -> Iobuf.Blit_fill.blito ~src:iobuf ~dst:buf ());
+  Iobuf.rewind buf;
+  buf
+;;
+
+let test () =
+  to_iobuf
+    { destination_mac = Mac_address.nearest_bridge ()
+    ; source_mac      = Mac_address.of_byte_list [ 1; 2; 3; 4; 5; 6 ]
+    ; tlvs            =
+        [ Tlv.Chassis_id (Tlv.Chassis_id_data.Local "myhostname")
+        ; Tlv.Port_id    (Tlv.Port_id_data.Interface_name "eth0")
+        ; Tlv.Ttl        30
+        ]
+    }
+  |> of_iobuf
 ;;
