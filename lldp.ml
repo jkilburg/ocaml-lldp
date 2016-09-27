@@ -93,7 +93,7 @@ module Tlv = struct
         | 13 -> Reserved_13
         | 14 -> Reserved_14
         | 15 -> Reserved_15
-        | x  -> failwithf "Undefined system capabiliy bit: %d" x ()
+        | x  -> failwithf "Undefined system capability bit: %d" x ()
       ;;
 
       let to_int = function
@@ -502,13 +502,13 @@ let of_iobuf buf =
   let destination_mac = Mac_address.of_string (C.string ~len:6 buf) in
   let source_mac      = Mac_address.of_string (C.string ~len:6 buf) in
   let ether_type      = C.uint16_be buf in
-  let rec read_tlvs tlvs =
+  let rec parse_tlvs tlvs =
     match Tlv.of_iobuf buf with
     | Tlv.Last_tlv -> List.rev tlvs
-    | tlv          -> read_tlvs (tlv::tlvs)
+    | tlv          -> parse_tlvs (tlv::tlvs)
   in
   match ether_type with
-  | 0x88cc -> sexp_of_t { destination_mac; source_mac; tlvs = read_tlvs [] }
+  | 0x88cc -> { destination_mac; source_mac; tlvs = parse_tlvs [] }
   | x      -> failwithf "Unknown ether_type: %x" x ()
 ;;
 

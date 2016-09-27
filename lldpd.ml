@@ -16,7 +16,7 @@ let rec read_all_lldp fd buf =
   | res ->
     printf "TLV:\n";
     let lldp = Lldp.of_iobuf (Iobuf.of_string buf) in
-    printf "%s\n" (Sexp.to_string lldp);
+    printf "%s\n" (Lldp.sexp_of_t lldp |> Sexp.to_string);
     Deferred.Or_error.ok_unit
 ;;
 
