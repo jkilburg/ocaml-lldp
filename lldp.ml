@@ -534,7 +534,6 @@ let to_iobuf t =
     List.fold iobufs ~init:0
       ~f:(fun acc iobuf ->
           Iobuf.rewind iobuf;
-          printf "%s\n" (Iobuf.to_string_hum ~bounds:`Whole iobuf);
           acc + Iobuf.length iobuf)
   in
   let buf = Iobuf.create ~len in

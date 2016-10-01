@@ -21,8 +21,8 @@ netdevice.cmx: netdevice.ml Makefile
 socket.cmx: socket.ml Makefile
 	ocamlfind ocamlopt -thread -g -c -package core $(<)i $<
 
-lldp.cmx: lldp.ml Makefile
-	ocamlfind ocamlopt -thread -g -c -package ppx_jane -package core $<
+lldp.cmx: lldp.ml lldp.mli Makefile
+	ocamlfind ocamlopt -thread -g -c -package ppx_jane -package core $(<)i $<
 
 liblldp.a: packet_stub.o netdevice_stub.o socket_stub.o netdevice.cmx packet.cmx socket.cmx Makefile
 	$(OCAMLMKLIB) -custom -oc lldp packet_stub.o netdevice_stub.o socket_stub.o
@@ -30,7 +30,7 @@ liblldp.a: packet_stub.o netdevice_stub.o socket_stub.o netdevice.cmx packet.cmx
 CMX_FILES=packet.cmx netdevice.cmx socket.cmx lldp.cmx
 
 lldpd: $(CMX_FILES) lldpd.ml lldpd.mli liblldp.a Makefile
-	ocamlfind ocamlopt -thread -g -o $@ -linkpkg -package core -package async_kernel -package async liblldp.a $(CMX_FILES) lldpd.mli lldpd.ml
+	ocamlfind ocamlopt -thread -g -o $@ -linkpkg -package ppx_jane -package core -package async liblldp.a $(CMX_FILES) lldpd.mli lldpd.ml
 
 lldp_test: $(CMX_FILES) lldp_test.ml lldp_test.mli liblldp.a Makefile
 	ocamlfind ocamlopt -thread -g -o $@ -linkpkg -package core -package async_kernel -package async liblldp.a $(CMX_FILES) lldp_test.mli lldp_test.ml
