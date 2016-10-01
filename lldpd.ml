@@ -4,8 +4,29 @@ open Async.Std
 let buflen = 10 * 1024
 
 let recv fd buf =
-  In_thread.run ~name:"lldp"
+  In_thread.run ~name:"lldp-recv"
     (fun () -> Core.Std.Unix.recv fd ~buf ~pos:0 ~len:buflen ~mode:[])
+;;
+
+let send fd hw =
+  let iobuf =
+    let open Lldp in
+    to_iobuf
+      { destination_mac = Mac_address.nearest_bridge ()
+      ; source_mac      = Mac_address.of_string hw
+      ; tlvs            =
+          [ Tlv.Chassis_id  (Tlv.Chassis_id_data.Local "myhostname")
+          ; Tlv.Port_id     (Tlv.Port_id_data.Interface_name "eth0")
+          ; Tlv.Ttl         300
+          ; Tlv.System_name "myhostname"
+          ; Tlv.System_description "Crackpipe"
+          ; Tlv.Port_id
+              (Tlv.Port_id_data.Mac_address (Mac_address.of_string hw))
+          ]
+      }
+  in
+  In_thread.run ~name:"lldp-send"
+    (fun () -> Or_error.try_with (fun () -> Iobuf.write iobuf fd))
 ;;
 
 let rec read_all_lldp fd buf =
@@ -47,7 +68,7 @@ let setup_socket interface =
   printf "Interface MAC: ";
   String.iter hw ~f:(fun c -> printf "%02x" (Char.to_int c));
   printf "\n";
-  return fd
+  return (fd,hw)
 ;;
 
 let main () =
@@ -60,9 +81,12 @@ let main () =
     (fun interface () ->
        match setup_socket interface with
        | Error _ as e -> return e
-       | Ok fd ->
+       | Ok (fd,hw) ->
+         let fd = Core.Std.Unix.File_descr.of_int fd in
          let buf = Bytes.create buflen in
-         read_all_lldp (Core.Std.Unix.File_descr.of_int fd) buf)
+         read_all_lldp fd buf
+         >>=? fun () ->
+         send fd hw)
 ;;
 
 let () = Command.run (main ())

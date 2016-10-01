@@ -21,11 +21,17 @@ module Mac_address : sig
 end = struct
   type t = string [@@deriving sexp]
 
-  let of_string = Fn.id
   let to_string = Fn.id
+  let of_string s =
+    match String.length s with
+    | 6 -> Fn.id s
+    | x -> failwithf "Expected 6 bytes. Got %d." x ()
+  ;;
                                 
   let of_byte_list l =
-    String.of_char_list (List.map l ~f:Char.of_int_exn)
+    match List.length l with
+    | 6 -> String.of_char_list (List.map l ~f:Char.of_int_exn)
+    | x -> failwithf "Expected 6 bytes. Got %d." x ()
   ;;
 
   let nearest_bridge () =
