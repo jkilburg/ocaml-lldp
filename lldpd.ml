@@ -18,8 +18,8 @@ let send fd hw =
           [ Tlv.Chassis_id  (Tlv.Chassis_id_data.Local "myhostname")
           ; Tlv.Port_id     (Tlv.Port_id_data.Interface_name "eth0")
           ; Tlv.Ttl         300
-          ; Tlv.System_name "myhostname"
-          ; Tlv.System_description "Crackpipe"
+          ; Tlv.System_name (Unix.gethostname ())
+          ; Tlv.System_description "Some kind of computer"
           ; Tlv.Port_id
               (Tlv.Port_id_data.Mac_address (Mac_address.of_string hw))
           ]
