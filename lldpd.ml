@@ -1,4 +1,4 @@
-open Core.Std
+open! Core.Std
 open Async.Std
 
 let setup_socket interface =
@@ -27,51 +27,7 @@ let setup_socket interface =
   return (fd,hw)
 ;;
 
-module Stash : sig
-  val add   : sequencer:unit Throttle.Sequencer.t -> Lldp.t -> unit Deferred.t
-  val clean : incoming_ttl:Time.Span.t -> unit Throttle.Sequencer.t -> unit Deferred.t
-end= struct
-  type meta =
-    { lldp  : Lldp.t
-    ; stamp : Time.t
-    } [@@deriving sexp]
-  type t = meta list [@@deriving sexp]
-
-  let empty () : t = []
-
-  let lldp_stash = ref (empty ())
-
-  let add ~sequencer lldp =
-    Throttle.enqueue sequencer
-      (fun () ->
-         lldp_stash := { lldp; stamp = Time.now () }::(!lldp_stash);
-         Deferred.unit)
-  ;;
-
-  let clean ~incoming_ttl sequencer =
-    let now = Time.now () in
-    Throttle.enqueue sequencer
-      (fun () ->
-         lldp_stash := 
-           List.filter !lldp_stash
-             ~f:(fun lldp_meta ->
-                 let lifetime = Time.diff now lldp_meta.stamp in
-                 let ttl =
-                   match
-                     List.find_map (Lldp.tlvs lldp_meta.lldp)
-                       ~f:(function
-                           | Lldp.Tlv.Ttl ttl -> Some ttl
-                           | _                -> None)
-                   with
-                   | None     -> incoming_ttl
-                   | Some ttl -> Time.Span.of_sec (Float.of_int ttl)
-                 in
-                 Time.Span.(<) lifetime ttl);
-         Deferred.unit)
-  ;;
-end
-
-let read_loop ~sequencer fd =
+let reader db fd =
   let inbound_iobuf = Iobuf.create ~len:10000 in
   let rec loop () =
     In_thread.run ~name:"lldp"
@@ -80,7 +36,7 @@ let read_loop ~sequencer fd =
     | Iobuf.Eof -> Deferred.Or_error.errorf "Unexpected EOF"
     | Iobuf.Ok  ->
       Iobuf.rewind inbound_iobuf;
-      Stash.add ~sequencer (Lldp.of_iobuf inbound_iobuf)
+      Database.add db (Lldp.of_iobuf inbound_iobuf)
       >>= fun ()->
       loop ()
   in
@@ -111,6 +67,34 @@ let write ~outbound_iobuf fd =
     (fun () -> Or_error.try_with (fun () -> Iobuf.write outbound_iobuf fd))
 ;;
 
+let main ~outgoing_ttl ~incoming_ttl ~clean_interval ~interface () =
+  match setup_socket interface with
+  | Error _ as e -> return e
+  | Ok (fd,hw)   ->
+    let fd = Core.Std.Unix.File_descr.of_int fd in
+    let outbound_iobuf = make_outbound_iobuf ~outgoing_ttl ~interface ~hw in
+    (* Write one LLDP right away *)
+    write ~outbound_iobuf fd
+    >>=? fun () ->
+    let db = Database.create ~incoming_ttl () in
+    (* Write LLDP every outgoing_ttl seconds *)
+    every outgoing_ttl
+      (fun () ->
+         write ~outbound_iobuf fd
+         >>> function
+         | Ok ()   -> ()
+         | Error e ->
+           printf "Error while writing: %s\n" (Error.to_string_hum e));
+    (* Clean the database of incoming LLDP packets every clean_interval *)
+    every clean_interval
+      (fun () -> Database.clean db >>> fun () -> ());
+    (* Dump the database *)
+    every (Time.Span.of_sec 30.)
+      (fun () -> printf !"%{sexp:Lldp.t list}\n" (Database.get db));
+    (* Hopefully never returns from reading incoming packets *)
+    reader db fd
+;;
+
 let () =
   let open Command.Let_syntax in
   Command.async_or_error'
@@ -132,28 +116,7 @@ let () =
       and
         interface = anon ( "ETHERNET-INTERFACE-NAME" %: string )
       in
-      fun () ->
-        match setup_socket interface with
-        | Error _ as e -> return e
-        | Ok (fd,hw)   ->
-          let fd = Core.Std.Unix.File_descr.of_int fd in
-          let outbound_iobuf = make_outbound_iobuf ~outgoing_ttl ~interface ~hw in
-          write ~outbound_iobuf fd
-          >>=? fun () ->
-          let sequencer = Throttle.Sequencer.create () in
-          (* Write LLDP every outgoing_ttl seconds *)
-          every outgoing_ttl
-            (fun () ->
-               write ~outbound_iobuf fd
-               >>> function
-               | Ok ()   -> ()
-               | Error e ->
-                 printf "Error while writing: %s\n" (Error.to_string_hum e));
-          (* Clean the database of incoming LLDP packets every clean_interval *)
-          every clean_interval
-            (fun () -> Stash.clean ~incoming_ttl sequencer >>> fun () -> ());
-          (* Hopefully never returns from reading incoming packets *)
-          read_loop ~sequencer fd
+      main ~outgoing_ttl ~incoming_ttl ~clean_interval ~interface
     ]
   |> Command.run
 ;;
