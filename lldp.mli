@@ -145,7 +145,9 @@ type t =
   ; tlvs            : Tlv.t list
   } [@@deriving sexp]
 
-val lldp_protocol_number : int
+val tlvs : t -> Tlv.t list
+
+val protocol_number : int
 
 val of_iobuf : ([>Core.Std.read], Iobuf.seek) Iobuf.t -> t
 val to_iobuf : t -> ([>Core.Std.write], Iobuf.seek) Iobuf.t

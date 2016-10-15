@@ -5,7 +5,7 @@ module Inet_addr = Unix.Inet_addr
 module C = Iobuf.Consume
 module F = Iobuf.Fill
 
-let lldp_protocol_number = 0x88cc
+let protocol_number = 0x88cc
 
 module Mac_address : sig
   type t [@@deriving sexp]
@@ -20,6 +20,12 @@ module Mac_address : sig
   val nearest_customer_bridge : unit -> t
 end = struct
   type t = string [@@deriving sexp]
+
+(*
+  printf "Interface MAC: ";
+  String.iter hw ~f:(fun c -> printf "%02x" (Char.to_int c));
+  printf "\n";
+*)
 
   let to_string = Fn.id
   let of_string s =
@@ -502,7 +508,7 @@ type t =
   { destination_mac : Mac_address.t
   ; source_mac      : Mac_address.t
   ; tlvs            : Tlv.t list
-  } [@@deriving sexp]
+  } [@@deriving sexp, fields]
 
 let of_iobuf buf =
   let destination_mac = Mac_address.of_string (C.string ~len:6 buf) in
@@ -522,7 +528,7 @@ let to_iobuf_list t =
   let buf = Iobuf.create ~len:14 in
   F.string buf (Mac_address.to_string t.destination_mac);
   F.string buf (Mac_address.to_string t.source_mac);
-  F.uint16_be buf lldp_protocol_number;
+  F.uint16_be buf protocol_number;
   let tlv_bufs = List.map t.tlvs ~f:Tlv.to_iobuf in
   let last_buf = Tlv.to_iobuf Tlv.Last_tlv in
   buf :: ( tlv_bufs @ [ last_buf ] )
