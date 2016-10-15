@@ -119,12 +119,16 @@ let () =
       let outgoing_ttl =
         flag "-outgoing-ttl"
           (optional_with_default (Time.Span.of_sec 300.0) time_span)
-          ~doc:"TTL time-to-live for use in transmitted LLDP packets"
+          ~doc:"TIME-SPAN time-to-live for use in transmitted LLDP packets"
       and incoming_ttl =
         flag "-incoming-ttl"
           (optional_with_default (Time.Span.of_sec 300.0) time_span)
-          ~doc:"TTL time-to-live to apply to incoming packets \
+          ~doc:"TIME-SPAN time-to-live to apply to incoming packets \
                 without a TTL TLV"
+      and clean_interval =
+        flag "-clean-interval"
+          (optional_with_default (Time.Span.of_sec 1.0) time_span)
+          ~doc:"TIME-SPAN cleanup LLDP database at this interval"
       and
         interface = anon ( "ETHERNET-INTERFACE-NAME" %: string )
       in
@@ -133,12 +137,11 @@ let () =
         | Error _ as e -> return e
         | Ok (fd,hw)   ->
           let fd = Core.Std.Unix.File_descr.of_int fd in
-          let outbound_iobuf =
-            make_outbound_iobuf ~outgoing_ttl ~interface ~hw
-          in
+          let outbound_iobuf = make_outbound_iobuf ~outgoing_ttl ~interface ~hw in
           write ~outbound_iobuf fd
           >>=? fun () ->
           let sequencer = Throttle.Sequencer.create () in
+          (* Write LLDP every outgoing_ttl seconds *)
           every outgoing_ttl
             (fun () ->
                write ~outbound_iobuf fd
@@ -146,8 +149,10 @@ let () =
                | Ok ()   -> ()
                | Error e ->
                  printf "Error while writing: %s\n" (Error.to_string_hum e));
-          every (Time.Span.of_sec 1.)
+          (* Clean the database of incoming LLDP packets every clean_interval *)
+          every clean_interval
             (fun () -> Stash.clean ~incoming_ttl sequencer >>> fun () -> ());
+          (* Hopefully never returns from reading incoming packets *)
           read_loop ~sequencer fd
     ]
   |> Command.run
