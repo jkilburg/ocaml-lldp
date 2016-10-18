@@ -136,7 +136,7 @@ module Tlv : sig
          | Management_address  of Management_address_data.t
          | Reserved            of int * string
          | Organizational      of Organizational_data.t
-  [@@deriving sexp]
+  [@@deriving sexp, compare]
 end
 
 type t =

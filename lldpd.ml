@@ -67,30 +67,32 @@ let write ~outbound_iobuf fd =
     (fun () -> Or_error.try_with (fun () -> Iobuf.write outbound_iobuf fd))
 ;;
 
-let main ~outgoing_ttl ~incoming_ttl ~clean_interval ~interface () =
+let main ?db_filename ~outgoing_ttl ~incoming_ttl ~clean_interval ~interface ~receive_only
+    ~transmit_interval () =
   match setup_socket interface with
   | Error _ as e -> return e
   | Ok (fd,hw)   ->
     let fd = Core.Std.Unix.File_descr.of_int fd in
     let outbound_iobuf = make_outbound_iobuf ~outgoing_ttl ~interface ~hw in
-    (* Write one LLDP right away *)
-    write ~outbound_iobuf fd
+    begin
+      match receive_only with
+      | true  -> Deferred.Or_error.ok_unit
+      | false -> 
+        (* Write LLDP every transmit_interval seconds *)
+        every transmit_interval
+          (fun () ->
+             write ~outbound_iobuf fd
+             >>> function
+             | Ok ()   -> ()
+             | Error e ->
+               printf "Error while writing: %s\n" (Error.to_string_hum e));
+        (* Write one LLDP right away *)
+        write ~outbound_iobuf fd
+    end
     >>=? fun () ->
-    let db = Database.create ~incoming_ttl () in
-    (* Write LLDP every outgoing_ttl seconds *)
-    every outgoing_ttl
-      (fun () ->
-         write ~outbound_iobuf fd
-         >>> function
-         | Ok ()   -> ()
-         | Error e ->
-           printf "Error while writing: %s\n" (Error.to_string_hum e));
+    let db = Database.create ?db_filename ~incoming_ttl () in
     (* Clean the database of incoming LLDP packets every clean_interval *)
-    every clean_interval
-      (fun () -> Database.clean db >>> fun () -> ());
-    (* Dump the database *)
-    every (Time.Span.of_sec 30.)
-      (fun () -> printf !"%{sexp:Lldp.t list}\n" (Database.get db));
+    every clean_interval (fun () -> Database.clean db >>> fun () -> ());
     (* Hopefully never returns from reading incoming packets *)
     reader db fd
 ;;
@@ -103,20 +105,31 @@ let () =
       let outgoing_ttl =
         flag "-outgoing-ttl"
           (optional_with_default (Time.Span.of_sec 300.0) time_span)
-          ~doc:"TIME-SPAN time-to-live for use in transmitted LLDP packets"
+          ~doc:"TIME-SPAN time-to-live for use in transmitted LLDP packets (default: 300s)"
       and incoming_ttl =
         flag "-incoming-ttl"
           (optional_with_default (Time.Span.of_sec 300.0) time_span)
           ~doc:"TIME-SPAN time-to-live to apply to incoming packets \
-                without a TTL TLV"
+                without a TTL TLV (default: 300s)"
       and clean_interval =
         flag "-clean-interval"
-          (optional_with_default (Time.Span.of_sec 1.0) time_span)
-          ~doc:"TIME-SPAN cleanup LLDP database at this interval"
+          (optional_with_default (Time.Span.of_sec 30.0) time_span)
+          ~doc:"TIME-SPAN cleanup LLDP database at this interval (default: 30s)"
+      and db_filename =
+        flag "-db-filename" (optional string)
+          ~doc:"FILENAME sexp-output-filename of LLDP database (default: stdout)"
+      and receive_only =
+        flag "-receive-only" no_arg ~doc:" do not transmit LLDP. receive only."
+      and transmit_interval =
+        flag "-transmit-interval"
+          (optional_with_default (Time.Span.of_sec 150.0) time_span)
+          ~doc:"TIME-SPAN LLDP transmit interval. (default: 150s)"
       and
         interface = anon ( "ETHERNET-INTERFACE-NAME" %: string )
       in
-      main ~outgoing_ttl ~incoming_ttl ~clean_interval ~interface
+      main ?db_filename
+        ~outgoing_ttl ~incoming_ttl ~clean_interval ~interface ~receive_only
+        ~transmit_interval
     ]
   |> Command.run
 ;;

@@ -8,7 +8,7 @@ module F = Iobuf.Fill
 let protocol_number = 0x88cc
 
 module Mac_address : sig
-  type t [@@deriving sexp]
+  type t [@@deriving sexp, compare]
 
   val of_string : string -> t
   val to_string : t -> string
@@ -19,7 +19,7 @@ module Mac_address : sig
   val nearest_nontpmr_bridge  : unit -> t
   val nearest_customer_bridge : unit -> t
 end = struct
-  type t = string [@@deriving sexp]
+  type t = string [@@deriving sexp, compare]
 
 (*
   printf "Interface MAC: ";
@@ -86,7 +86,7 @@ module Tlv = struct
              | Reserved_13
              | Reserved_14
              | Reserved_15
-      [@@deriving sexp]
+      [@@deriving sexp, compare]
 
       let of_int = function
         | 0  -> Other
@@ -128,7 +128,7 @@ module Tlv = struct
       ;;
     end
     
-    type t = System_capability_bit.t list [@@deriving sexp]
+    type t = System_capability_bit.t list [@@deriving sexp, compare]
 
     let of_iobuf buf =
       let mask = C.uint16_be buf in
@@ -173,7 +173,7 @@ module Tlv = struct
            | Network_address   of Inet_addr.Blocking_sexp.t
            | Interface_name    of string
            | Local             of string
-    [@@deriving sexp]
+    [@@deriving sexp, compare]
 
     let of_iobuf buf tlv_len  =
       let subtype = C.uint8 buf in
@@ -221,7 +221,7 @@ module Tlv = struct
            | Interface_name   of string
            | Agent_circuit_id of string
            | Local            of string
-    [@@deriving sexp]
+    [@@deriving sexp, compare]
 
     let of_iobuf buf tlv_len =
       let subtype = C.uint8 buf in
@@ -267,7 +267,7 @@ module Tlv = struct
              | Port_and_protocol_vlan_id of int * int
              | Vlan_name of int * string
              | Protocol_identity of string
-      [@@deriving sexp]
+      [@@deriving sexp, compare]
 
       let of_iobuf buf tlv_len =
         let subtype = C.uint8 buf in
@@ -296,14 +296,14 @@ module Tlv = struct
         ; autoneg_capability : int
         ; mau_type           : int
         }
-      [@@deriving sexp]
+      [@@deriving sexp, compare]
 
       type link_aggregation_status =
         { supported : bool
         ; enabled   : bool
         ; port_id   : int
         }
-      [@@deriving sexp]
+      [@@deriving sexp, compare]
 
       type power_status =
         { port_class         : int
@@ -313,14 +313,14 @@ module Tlv = struct
         ; power_pair         : int
         ; power_class        : int
         }
-      [@@deriving sexp]
+      [@@deriving sexp, compare]
         
       type t = Reserved of int * string
              | Phy_configuration_status of phy_configuration_status
              | Power_via_mdi of power_status
              | Link_aggregation of link_aggregation_status
              | Maximum_frame_size of int
-      [@@deriving sexp]
+      [@@deriving sexp, compare]
 
       let of_iobuf buf tlv_len =
         let subtype = C.uint8 buf in
@@ -367,7 +367,7 @@ module Tlv = struct
     type t = Unknown of int * int * int * int * string
            | Ieee_802_1 of Ieee_802_1.t
            | Ieee_802_3 of Ieee_802_3.t
-    [@@deriving sexp]
+    [@@deriving sexp, compare]
 
     let of_iobuf buf tlv_len =
       let b1 = C.uint8 buf in
@@ -397,7 +397,7 @@ module Tlv = struct
       ; interface_number            : int
       ; oid                         : string
       }
-    [@@deriving sexp]
+    [@@deriving sexp, compare]
 
     let of_iobuf buf =
       let mlen                        = C.uint8 buf in
@@ -450,7 +450,7 @@ module Tlv = struct
          | Management_address  of Management_address_data.t
          | Reserved            of int * string
          | Organizational      of Organizational_data.t
-  [@@deriving sexp]
+  [@@deriving sexp, compare]
 
   let of_iobuf buf =
     let b1 = C.uint8 buf in
