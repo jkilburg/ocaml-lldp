@@ -1,9 +1,23 @@
 open! Core.Std
 open Async.Std
 
+module Destination : sig
+  type t = Stdout
+         | Nowhere
+         | Collector of Unix.Inet_addr.t * int
+         | Filename of string
+
+  val of_string : string -> t
+end
+
 type t
 
-val create : ?db_filename:string -> incoming_ttl:Time.Span.t -> unit -> t
+val create
+  :  destination:Destination.t
+  -> incoming_ttl:Time.Span.t
+  -> unit
+  -> t Deferred.t
+
 val add    : t -> Lldp.t -> unit Deferred.t
 val clean  : t -> unit Deferred.t
 val get    : t -> Lldp.Tlv.t list

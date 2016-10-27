@@ -3,7 +3,7 @@ open Core.Std
 module Inet_addr = Unix.Inet_addr
 
 module Mac_address : sig
-  type t [@@deriving sexp]
+  type t [@@deriving sexp, bin_io]
 
   val of_string : string -> t
   val to_string : t -> string
@@ -25,7 +25,7 @@ module Tlv : sig
            | Network_address   of Inet_addr.Blocking_sexp.t
            | Interface_name    of string
            | Local             of string
-    [@@deriving sexp]
+    [@@deriving sexp, bin_io]
   end
 
   module Port_id_data : sig
@@ -37,7 +37,7 @@ module Tlv : sig
            | Interface_name   of string
            | Agent_circuit_id of string
            | Local            of string
-    [@@deriving sexp]
+    [@@deriving sexp, bin_io]
   end
 
   module System_capabilities_data : sig
@@ -58,10 +58,10 @@ module Tlv : sig
              | Reserved_13
              | Reserved_14
              | Reserved_15
-      [@@deriving sexp]
+      [@@deriving sexp, bin_io]
     end
 
-    type t = System_capability_bit.t list [@@deriving sexp]
+    type t = System_capability_bit.t list [@@deriving sexp, bin_io]
   end
 
   module Management_address_data : sig
@@ -72,7 +72,7 @@ module Tlv : sig
       ; interface_number            : int
       ; oid                         : string
       }
-    [@@deriving sexp]
+    [@@deriving sexp, bin_io]
   end
 
   module Organizational_data : sig
@@ -82,7 +82,7 @@ module Tlv : sig
              | Port_and_protocol_vlan_id of int * int
              | Vlan_name of int * string
              | Protocol_identity of string
-      [@@deriving sexp]
+      [@@deriving sexp, bin_io]
     end
     module Ieee_802_3 : sig
       type phy_configuration_status =
@@ -91,14 +91,14 @@ module Tlv : sig
         ; autoneg_capability : int
         ; mau_type           : int
         }
-      [@@deriving sexp]
+      [@@deriving sexp, bin_io]
 
       type link_aggregation_status =
         { supported : bool
         ; enabled   : bool
         ; port_id   : int
         }
-      [@@deriving sexp]
+      [@@deriving sexp, bin_io]
 
       type power_status =
         { port_class         : int
@@ -108,20 +108,20 @@ module Tlv : sig
         ; power_pair         : int
         ; power_class        : int
         }
-      [@@deriving sexp]
+      [@@deriving sexp, bin_io]
         
       type t = Reserved of int * string
              | Phy_configuration_status of phy_configuration_status
              | Power_via_mdi of power_status
              | Link_aggregation of link_aggregation_status
              | Maximum_frame_size of int
-      [@@deriving sexp]
+      [@@deriving sexp, bin_io]
     end
 
     type t = Unknown of int * int * int * int * string
            | Ieee_802_1 of Ieee_802_1.t
            | Ieee_802_3 of Ieee_802_3.t
-    [@@deriving sexp]
+    [@@deriving sexp, bin_io]
   end
 
   type t = Last_tlv
@@ -136,14 +136,14 @@ module Tlv : sig
          | Management_address  of Management_address_data.t
          | Reserved            of int * string
          | Organizational      of Organizational_data.t
-  [@@deriving sexp, compare]
+  [@@deriving sexp, bin_io, compare]
 end
 
 type t =
   { destination_mac : Mac_address.t
   ; source_mac      : Mac_address.t
   ; tlvs            : Tlv.t list
-  } [@@deriving sexp]
+  } [@@deriving sexp, bin_io]
 
 val tlvs : t -> Tlv.t list
 

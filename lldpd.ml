@@ -67,7 +67,7 @@ let write ~outbound_iobuf fd =
     (fun () -> Or_error.try_with (fun () -> Iobuf.write outbound_iobuf fd))
 ;;
 
-let main ?db_filename ~outgoing_ttl ~incoming_ttl ~clean_interval ~interface ~receive_only
+let main ~destination ~outgoing_ttl ~incoming_ttl ~clean_interval ~interface ~receive_only
     ~transmit_interval () =
   match setup_socket interface with
   | Error _ as e -> return e
@@ -90,14 +90,15 @@ let main ?db_filename ~outgoing_ttl ~incoming_ttl ~clean_interval ~interface ~re
         write ~outbound_iobuf fd
     end
     >>=? fun () ->
-    let db = Database.create ?db_filename ~incoming_ttl () in
+    let%bind db = Database.create ~destination ~incoming_ttl () in
     (* Clean the database of incoming LLDP packets every clean_interval *)
     every clean_interval (fun () -> Database.clean db >>> fun () -> ());
     (* Hopefully never returns from reading incoming packets *)
     reader db fd
 ;;
 
-let () =
+let local_server () =
+  let destination_arg = Command.Arg_type.create Database.Destination.of_string in
   let open Command.Let_syntax in
   Command.async_or_error'
     ~summary:"Read and write LLDP packets"
@@ -115,9 +116,9 @@ let () =
         flag "-clean-interval"
           (optional_with_default (Time.Span.of_sec 30.0) time_span)
           ~doc:"TIME-SPAN cleanup LLDP database at this interval (default: 30s)"
-      and db_filename =
-        flag "-db-filename" (optional string)
-          ~doc:"FILENAME sexp-output-filename of LLDP database (default: stdout)"
+      and destination =
+        flag "-destination" (required destination_arg)
+          ~doc:"DESTINATION expression describing the destination of TLVs"
       and receive_only =
         flag "-receive-only" no_arg ~doc:" do not transmit LLDP. receive only."
       and transmit_interval =
@@ -127,9 +128,29 @@ let () =
       and
         interface = anon ( "ETHERNET-INTERFACE-NAME" %: string )
       in
-      main ?db_filename
+      main ~destination
         ~outgoing_ttl ~incoming_ttl ~clean_interval ~interface ~receive_only
         ~transmit_interval
+    ]
+;;
+
+let collector () =
+  let open Command.Let_syntax in
+  Command.async_or_error'
+    ~summary:"Collect repeated TLVs"
+    [%map_open
+      let port =
+        flag "-port" (optional_with_default 9898 int)
+          ~doc:"PORT port on which to listen (default:9898)"          
+      in
+      fun () -> Deferred.Or_error.ok_unit
+    ]
+;;
+
+let () =
+  Command.group ~summary:"LLDP daemon"
+    [ "local-server", local_server ()
+    ; "collector"   , collector ()
     ]
   |> Command.run
 ;;
