@@ -64,7 +64,7 @@ let create ~destination ~incoming_ttl () =
     | Destination.Stdout                -> return `Stdout
     | Destination.Collector (addr,port) ->
       let socket = Unix.Socket.create Unix.Socket.Type.udp in
-      Unix.Socket.bind socket (`Inet (addr,port))
+      Unix.Socket.connect socket (`Inet (addr,port))
       >>| fun socket ->
       let fd = Unix.Socket.fd socket in
       let iobuf = Iobuf.create ~len:Async_extra.Udp.default_capacity in
@@ -83,11 +83,9 @@ type meta =
   ; stamp : Time.t
   } [@@deriving sexp]
 
-let empty () : meta list = []
+let tlv_stash = ref ([] : meta list)
 
-let tlv_stash = ref (empty ())
-
-(* Call only when sequenced *)
+(* Call only when sequenced. *)
 let write_db t =
   match t.dest_info with
   | `Nowhere              -> Deferred.unit
@@ -95,9 +93,9 @@ let write_db t =
   | `Filename f           -> Writer.save_sexp f ([%sexp_of: meta list] !tlv_stash)
   | `Collector (fd,iobuf) ->
     Iobuf.rewind iobuf;
+    Iobuf.Fill.uint8 iobuf (List.length !tlv_stash);
     List.iter !tlv_stash
       ~f:(fun meta -> Iobuf.Fill.bin_prot Lldp.Tlv.bin_writer_t iobuf meta.tlv);
-    printf "%s\n" (Iobuf.to_string_hum iobuf);
     Iobuf.rewind iobuf;
     Iobuf.write iobuf (Unix.Fd.file_descr_exn fd);
     Deferred.unit
