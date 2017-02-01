@@ -62,7 +62,7 @@ module Tlv = struct
     let tlv_len = String.length x in
     let buf = Iobuf.create ~len:(2 + tlv_len) in
     F.uint16_be buf (type_and_len ~tlv_type ~tlv_len);
-    F.string buf x;
+    F.stringo buf x;
     buf
   ;;
 
@@ -177,7 +177,7 @@ module Tlv = struct
 
     let of_iobuf buf tlv_len  =
       let subtype = C.uint8 buf in
-      let s       = C.string ~len:(tlv_len - 1) buf in
+      let s       = C.stringo ~len:(tlv_len - 1) buf in
       match subtype with
       | 1 -> Chassis_component s
       | 2 -> Interface_alias s
@@ -205,7 +205,7 @@ module Tlv = struct
       let buf = Iobuf.create ~len:(tlv_len + 2) in
       F.uint16_be buf (type_and_len ~tlv_type ~tlv_len);
       F.uint8 buf subtype;
-      F.string buf data;
+      F.stringo buf data;
       buf
     ;;
   end
@@ -225,7 +225,7 @@ module Tlv = struct
 
     let of_iobuf buf tlv_len =
       let subtype = C.uint8 buf in
-      let s       = C.string ~len:(tlv_len - 1) buf in
+      let s       = C.stringo ~len:(tlv_len - 1) buf in
       match subtype with
       | 1 -> Interface_alias s
       | 2 -> Port_component s
@@ -253,7 +253,7 @@ module Tlv = struct
       let buf = Iobuf.create ~len:(tlv_len + 2) in
       F.uint16_be buf (type_and_len ~tlv_type ~tlv_len);
       F.uint8 buf subtype;
-      F.string buf data;
+      F.stringo buf data;
       buf
     ;;
   end
@@ -277,13 +277,13 @@ module Tlv = struct
         | 3 ->
           let vlan_id       = C.uint16_be buf in
           let vlan_name_len = C.uint8 buf in
-          let vlan_name     = C.string ~len:vlan_name_len buf in
+          let vlan_name     = C.stringo ~len:vlan_name_len buf in
           Vlan_name (vlan_id, vlan_name)
         | 4 ->
           let protocol_id_len = C.uint8 buf in
-          let protocol_id     = C.string ~len:protocol_id_len buf in
+          let protocol_id     = C.stringo ~len:protocol_id_len buf in
           Protocol_identity protocol_id
-        | _ -> Reserved (subtype,C.string ~len:(tlv_len - 4) buf)          
+        | _ -> Reserved (subtype,C.stringo ~len:(tlv_len - 4) buf)          
       ;;
 
       let to_iobuf _t _buf = ()
@@ -358,7 +358,7 @@ module Tlv = struct
         | 4 ->
           let frame_size = C.uint16_be buf in
           Maximum_frame_size frame_size
-        | _ -> Reserved (subtype,C.string ~len:(tlv_len - 4) buf)          
+        | _ -> Reserved (subtype,C.stringo ~len:(tlv_len - 4) buf)
       ;;
 
       let to_iobuf _t _buf = ()
@@ -378,7 +378,7 @@ module Tlv = struct
       | (0x00,0x12,0x0f) -> Ieee_802_3 (Ieee_802_3.of_iobuf buf tlv_len)
       | _                ->
         let subtype = C.uint8 buf in
-        let data = C.string ~len:(tlv_len - 4) buf in
+        let data = C.stringo ~len:(tlv_len - 4) buf in
         Unknown (b1,b2,b3,subtype,data)
     ;;
 
@@ -402,11 +402,11 @@ module Tlv = struct
     let of_iobuf buf =
       let mlen                        = C.uint8 buf in
       let management_address_subtype  = C.uint8 buf in
-      let management_address          = C.string ~len:mlen buf in
+      let management_address          = C.stringo ~len:mlen buf in
       let interface_numbering_subtype = C.uint8 buf in
       let interface_number            = C.uint32_be buf in
       let olen                        = C.uint8 buf in
-      let oid                         = C.string ~len:olen buf in
+      let oid                         = C.stringo ~len:olen buf in
       { management_address_subtype
       ; management_address
       ; interface_numbering_subtype
@@ -429,11 +429,11 @@ module Tlv = struct
       let buf = Iobuf.create ~len:(2 + tlv_len) in
       F.uint16_be buf (type_and_len ~tlv_type ~tlv_len);
       F.uint8 buf mlen;
-      F.string buf t.management_address;
+      F.stringo buf t.management_address;
       F.uint8 buf t.interface_numbering_subtype;
       F.uint32_be buf t.interface_number;
       F.uint8 buf olen;
-      F.string buf t.oid;
+      F.stringo buf t.oid;
       buf
     ;;
   end
@@ -462,16 +462,16 @@ module Tlv = struct
     | 1   -> Chassis_id (Chassis_id_data.of_iobuf buf tlv_len)
     | 2   -> Port_id (Port_id_data.of_iobuf buf tlv_len)
     | 3   -> Ttl (C.uint16_be buf)
-    | 4   -> Port_description (C.string ~len:tlv_len buf)
-    | 5   -> System_name (C.string ~len:tlv_len buf)
-    | 6   -> System_description (C.string ~len:tlv_len buf)
+    | 4   -> Port_description (C.stringo ~len:tlv_len buf)
+    | 5   -> System_name (C.stringo ~len:tlv_len buf)
+    | 6   -> System_description (C.stringo ~len:tlv_len buf)
     | 7   ->
       let caps    = System_capabilities_data.of_iobuf buf in
       let enabled = System_capabilities_data.of_iobuf buf in
       System_capabilities (caps, enabled)
     | 8   -> Management_address (Management_address_data.of_iobuf buf)
     | 127 -> Organizational (Organizational_data.of_iobuf buf tlv_len)
-    | x   -> Reserved (x, C.string ~len:tlv_len buf)
+    | x   -> Reserved (x, C.stringo ~len:tlv_len buf)
   ;;
 
   let ttl_iobuf x =
@@ -511,8 +511,8 @@ type t =
   } [@@deriving sexp, bin_io, fields]
 
 let of_iobuf buf =
-  let destination_mac = Mac_address.of_string (C.string ~len:6 buf) in
-  let source_mac      = Mac_address.of_string (C.string ~len:6 buf) in
+  let destination_mac = Mac_address.of_string (C.stringo ~len:6 buf) in
+  let source_mac      = Mac_address.of_string (C.stringo ~len:6 buf) in
   let ether_type      = C.uint16_be buf in
   let rec parse_tlvs tlvs =
     match Tlv.of_iobuf buf with
@@ -526,8 +526,8 @@ let of_iobuf buf =
 
 let to_iobuf_list t =
   let buf = Iobuf.create ~len:14 in
-  F.string buf (Mac_address.to_string t.destination_mac);
-  F.string buf (Mac_address.to_string t.source_mac);
+  F.stringo buf (Mac_address.to_string t.destination_mac);
+  F.stringo buf (Mac_address.to_string t.source_mac);
   F.uint16_be buf protocol_number;
   let tlv_bufs = List.map t.tlvs ~f:Tlv.to_iobuf in
   let last_buf = Tlv.to_iobuf Tlv.Last_tlv in

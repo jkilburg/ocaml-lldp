@@ -7,10 +7,15 @@ module Destination = struct
          | Collector of Unix.Inet_addr.t * int
          | Filename of string
 
+  let expressions = [ "collector:hostname:port"
+                    ; "stdout"
+                    ; "filename:path_of_filename"
+                    ; "nowhere"
+                    ]
+                    
   let of_string s =
     let parse_fail () =
-      failwith "Destination should be one of \
-                collector:hostname:port,stdout,filename:path_of_filename,nowhere"
+      failwithf "Destination should be one of %s" (String.concat ~sep:"," expressions) ()
     in
     let s = String.lowercase s in
     if String.is_prefix ~prefix:"collector" s
@@ -83,39 +88,44 @@ type meta =
   ; stamp : Time.t
   } [@@deriving sexp]
 
-let tlv_stash = ref ([] : meta list)
+let tlv_stash = ref (String.Map.empty : meta list String.Map.t)
 
 (* Call only when sequenced. *)
-let write_db t =
+let write_db t ~interface =
   match t.dest_info with
   | `Nowhere              -> Deferred.unit
-  | `Stdout               -> printf !"%{sexp:meta list}\n" !tlv_stash; Deferred.unit
-  | `Filename f           -> Writer.save_sexp f ([%sexp_of: meta list] !tlv_stash)
+  | `Stdout               -> printf !"%{sexp:meta list String.Map.t}\n" !tlv_stash; Deferred.unit
+  | `Filename f           -> Writer.save_sexp f ([%sexp_of: meta list String.Map.t] !tlv_stash)
   | `Collector (fd,iobuf) ->
-    Iobuf.rewind iobuf;
-    Iobuf.Fill.uint8 iobuf (List.length !tlv_stash);
-    List.iter !tlv_stash
-      ~f:(fun meta -> Iobuf.Fill.bin_prot Lldp.Tlv.bin_writer_t iobuf meta.tlv);
-    Iobuf.rewind iobuf;
-    Iobuf.write iobuf (Unix.Fd.file_descr_exn fd);
-    Deferred.unit
+    match Map.find !tlv_stash interface with
+    | None           ->
+      (* CR-soon jkilburg: log this? *)
+      Deferred.unit
+    | Some meta_list ->
+      let tlvs = List.map meta_list ~f:(fun meta -> meta.tlv) in
+      Site_server.send_packet ~fd ~interface ~tlvs iobuf
 ;;
 
 (* Call only when sequenced *)
 let clean_aux t =
   let now = Time.now () in
   tlv_stash := 
-    List.filter !tlv_stash
-      ~f:(fun tlv_meta ->
-          let lifetime = Time.diff now tlv_meta.stamp in
-          Time.Span.(<) lifetime tlv_meta.ttl)
+    Map.filter_map !tlv_stash
+      ~f:(fun meta_list ->
+          let meta_list =
+            List.filter meta_list
+              ~f:(fun tlv_meta ->
+                  let lifetime = Time.diff now tlv_meta.stamp in
+                  Time.Span.(<) lifetime tlv_meta.ttl)
+          in
+          Some meta_list)
 ;;
 
 let clean t =
   Throttle.enqueue t.sequencer (fun () -> clean_aux t; Deferred.unit)
 ;;
 
-let add t lldp =
+let add t ~interface lldp =
   (* Find the TTL TLV. If not found use the default. *)
   let ttl =
     match
@@ -135,13 +145,24 @@ let add t lldp =
          ~f:(function
              | Lldp.Tlv.Ttl _ -> ()
              | new_tlv        ->
-               (* Before adding a new record remove duplicates from the stash *)
-               tlv_stash := List.filter !tlv_stash
-                   ~f:(fun meta -> Lldp.Tlv.compare new_tlv meta.tlv <> 0);
-               (* Add the TLV to the stash *)
-               tlv_stash := { tlv = new_tlv; ttl; stamp = Time.now () }::(!tlv_stash));
+               tlv_stash :=
+                 Map.change !tlv_stash interface
+                   ~f:(fun meta_list ->
+                       let new_meta = { tlv = new_tlv; ttl; stamp = Time.now () } in
+                       match meta_list with
+                       | None           -> Some [ new_meta ]
+                       | Some meta_list ->
+                         (* Before adding a new record remove duplicates from the stash *)
+                         let meta_list =
+                           List.filter meta_list
+                             ~f:(fun meta -> Lldp.Tlv.compare new_tlv meta.tlv <> 0)
+                         in
+                         Some (new_meta::meta_list)));
        (* Write the database *)
-       write_db t)
+       write_db t ~interface)
 ;;
 
-let get _t = List.map !tlv_stash ~f:(fun meta -> meta.tlv) ;;
+let get _t ~interface = 
+  Map.find !tlv_stash interface
+  |> Option.map ~f:(List.map ~f:(fun meta -> meta.tlv))
+;;

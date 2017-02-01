@@ -32,7 +32,9 @@ let pick () =
 let read t =
   match Iobuf.read t.inbuf (Unix.Fd.file_descr_exn t.fd) with
   | Iobuf.Eof -> Deferred.Or_error.errorf "%s: unexpected EOF" t.name
-  | Iobuf.Ok  -> Deferred.Or_error.ok_unit
+  | Iobuf.Ok  ->
+    Iobuf.rewind t.inbuf;
+    Deferred.Or_error.return (Lldp.of_iobuf t.inbuf)
 ;;
 
 let make_outbuf ~outgoing_ttl ~name ~hw () =

@@ -15,5 +15,7 @@ val fd : t -> Unix.Fd.t
 
 val close : t -> unit Deferred.Or_error.t
 
-val read : t -> unit Deferred.Or_error.t
+val read : t -> Lldp.t Deferred.Or_error.t
 
+val name : t -> string
+  
