@@ -1,0 +1,6 @@
+(library
+ ((name netstubs)
+  (public_name netstubs)	
+  (libraries (core))		
+  (c_names (netdevice_stub packet_stub socket_stub))
+  (preprocess no_preprocessing)))
