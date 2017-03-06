@@ -1,4 +1,4 @@
-open Core.Std
+open Core
 
 external socket          : int -> (int,int) Result.t                   = "packet_socket_c"
 external bind            : int -> int -> int -> (unit,int) Result.t    = "packet_bind_c"

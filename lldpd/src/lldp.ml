@@ -1,4 +1,4 @@
-open Core.Std
+open Core
 
 module Inet_addr = Unix.Inet_addr
                      

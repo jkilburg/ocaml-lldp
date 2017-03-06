@@ -1,5 +1,6 @@
-open! Core.Std
-open Async.Std
+open! Core
+open Async
+open Lldp
 
 let local_server_main
     ~destination ~outgoing_ttl ~incoming_ttl ~clean_interval ~interfaces ~receive_only

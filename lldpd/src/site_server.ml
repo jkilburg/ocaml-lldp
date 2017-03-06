@@ -1,5 +1,5 @@
-open! Core.Std
-open Async.Std
+open! Core
+open Async
 
 let server_map = ref Unix.Inet_addr.Map.empty
 
@@ -44,7 +44,10 @@ let setup_rpc_server ~rpc_port () =
                  Deferred.Or_error.errorf !"No TLVs found for %{Unix.Inet_addr}" addr
                | Some tlvs ->
                  List.iter tlvs
-                   ~f:(fun tlv -> Rpc.Pipe_rpc.Direct_stream_writer.write writer tlv |> ignore);
+                   ~f:(fun tlv ->
+                       (Rpc.Pipe_rpc.Direct_stream_writer.write writer tlv
+                        : [`Closed | `Flushed of unit Deferred.t])
+                       |> ignore);
                  Rpc.Pipe_rpc.Direct_stream_writer.close writer;
                  Deferred.Or_error.ok_unit)
         ]

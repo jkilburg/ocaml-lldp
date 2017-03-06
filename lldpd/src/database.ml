@@ -1,5 +1,5 @@
-open! Core.Std
-open Async.Std
+open! Core
+open Async
 
 module Destination = struct
   type t = Stdout
@@ -24,7 +24,7 @@ module Destination = struct
         match String.split ~on:':' s with
         | [_; hostname_or_ip; port] ->
           begin
-            let module Unix = Core.Std.Unix in
+            let module Unix = Core.Unix in
             match
               Unix.getaddrinfo hostname_or_ip port [Unix.AI_FAMILY Unix.PF_INET]
             with
@@ -54,7 +54,7 @@ end
 type t =
   { sequencer    : unit Throttle.Sequencer.t
   ; incoming_ttl : Time.Span.t
-  ; dest_info    : [ `Collector of Unix.Fd.t * (Core.Std.read_write, Iobuf.seek) Iobuf.t
+  ; dest_info    : [ `Collector of Unix.Fd.t * (Core.read_write, Iobuf.seek) Iobuf.t
                    | `Nowhere
                    | `Stdout
                    | `Filename of string

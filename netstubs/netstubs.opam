@@ -6,12 +6,11 @@ bug-reports: "https://github.com/jkilburg/ocaml-lldp/issues"
 dev-repo: "https://github.com/jkilburg/ocaml-lldp.git"
 license: "Apache-2.0"
 build: [
-  ["jbuilder" "build-package" "lldpd" "-j" jobs]
+  ["jbuilder" "build-package" "--only-packages" "netstubs" "--root" "." "-j" jobs]
 ]
 depends: [
   "core"
-  "async"
 ]
 available: [ ocaml-version >= "4.03.0" ]
 descr: "
-lldpd written in ocaml
+interface to network-related glibc functions

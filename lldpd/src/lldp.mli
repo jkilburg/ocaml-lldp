@@ -1,4 +1,4 @@
-open Core.Std
+open Core
 
 module Inet_addr = Unix.Inet_addr
 
@@ -143,13 +143,11 @@ type t =
   { destination_mac : Mac_address.t
   ; source_mac      : Mac_address.t
   ; tlvs            : Tlv.t list
-  } [@@deriving sexp, bin_io]
-
-val tlvs : t -> Tlv.t list
+  } [@@deriving sexp, bin_io, fields]
 
 val protocol_number : int
 
-val of_iobuf : ([>Core.Std.read], Iobuf.seek) Iobuf.t -> t
-val to_iobuf : t -> ([>Core.Std.write], Iobuf.seek) Iobuf.t
+val of_iobuf : ([>Core.read], Iobuf.seek) Iobuf.t -> t
+val to_iobuf : t -> ([>Core.write], Iobuf.seek) Iobuf.t
 
 val test : unit -> t

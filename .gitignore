@@ -1,13 +1,5 @@
-*.cmo
-*.cmi
-*.cma
-*.cmx
-*.cmxa
-*.a
-*.so
-*.o
-a.out
+_build
+*.install
+*.exe
+.merlin
 *~
-lldptool
-lldpd
-lldp_test

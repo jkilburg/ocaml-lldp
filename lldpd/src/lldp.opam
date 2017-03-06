@@ -1,0 +1,16 @@
+opam-version: "1.2"
+maintainer: "john@greenjeans.com"
+authors: ["john@greenjeans.com"]
+homepage: "https://github.com/jkilburg/ocaml-lldp"
+bug-reports: "https://github.com/jkilburg/ocaml-lldp/issues"
+dev-repo: "https://github.com/jkilburg/ocaml-lldp.git"
+license: "Apache-2.0"
+build: [
+  ["jbuilder" "build-package" "--only-packages" "lldp" "--root" "." "-j" jobs]
+]
+depends: [
+  "core" "async" "netstubs"
+]
+available: [ ocaml-version >= "4.03.0" ]
+descr: "
+lldp server library

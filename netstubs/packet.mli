@@ -1,4 +1,4 @@
-open Core.Std
+open Core
 
 val socket : int -> (int,int) Result.t
 val bind   : int -> int -> int -> (unit,int) Result.t

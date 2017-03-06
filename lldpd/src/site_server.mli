@@ -1,5 +1,5 @@
-open! Core.Std
-open Async.Std
+open! Core
+open Async
 
 val send_packet
   :  fd:Unix.Fd.t

@@ -1,4 +1,4 @@
-open Core.Std
+open Core
 
 val siocgifname    : int -> int -> (string,int) Result.t
 val siocgifindex   : int -> string -> (int,int) Result.t

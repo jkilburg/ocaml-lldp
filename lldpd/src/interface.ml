@@ -1,5 +1,6 @@
-open! Core.Std
-open Async.Std
+open! Core
+open Async
+open Netstubs
 
 type t =
   { name   : string
@@ -70,7 +71,7 @@ let write t =
 ;;
 
 let setup_socket name =
-  let open Core.Std.Or_error in
+  let open Core.Or_error in
   let error msg = function
     | Error ec  -> Or_error.errorf "%s Errno = %d" msg ec
     | Ok _ as z -> z
@@ -99,7 +100,7 @@ let create_t name =
   match setup_socket name with
   | Error _ as e -> return e
   | Ok (fd, hw)  ->
-    let file_descr = Core.Std.Unix.File_descr.of_int fd in
+    let file_descr = Core.Unix.File_descr.of_int fd in
     let%bind kind = Unix.Fd.Kind.infer_using_stat file_descr in
     Deferred.Or_error.return
       { name

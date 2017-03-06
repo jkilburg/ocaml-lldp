@@ -1,4 +1,4 @@
-open Core.Std
+open Core
        
 external siocgifname    : int -> int -> (string,int) Result.t    = "siocgifname_c"
 external siocgifindex   : int -> string -> (int,int) Result.t    = "siocgifindex_c"                                    
