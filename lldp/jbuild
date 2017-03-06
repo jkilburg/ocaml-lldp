@@ -1,4 +1,5 @@
-(executables
- ((names (lldpd lldp_test))
-  (libraries (lldp core async))
+(library
+ ((name lldp)
+  (public_name lldp)
+  (libraries (core async netstubs))
   (preprocess (pps (ppx_jane -annotated-ignores -ite-check -check-doc-comments)))))
